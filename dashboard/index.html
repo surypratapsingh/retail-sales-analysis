@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retail Sales Dashboard</title>
+<meta name="description" content="One-page dashboard for the UCI Online Retail dataset: KPIs, five charts and three findings, built with pandas and SQLite.">
+<style>
+  :root {
+    --bg: #f6f6f4; --surface: #fcfcfb; --text: #0b0b0b; --muted: #52514e; --line: #e4e3df; --grid: #ecebe7;
+    --series-1: #2a78d6; --accent: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111110; --surface: #1a1a19; --text: #f0efec; --muted: #c3c2b7; --line: #34332f; --grid: #2a2a27;
+      --series-1: #3987e5; --accent: #6da7ec;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 64px; }
+  a { color: var(--accent); }
+  h1 { margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.2rem); line-height: 1.2; }
+  h2 { margin: 0 0 4px; font-size: 1rem; }
+  p { margin: 0 0 10px; color: var(--muted); }
+  .links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-weight: 600; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0; }
+  .kpi .label { font-size: .85rem; color: var(--muted); }
+  .kpi .value { font-size: 1.9rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .kpi .note { font-size: .8rem; color: var(--muted); }
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .charts .wide { grid-column: 1 / -1; }
+  .chart-box { position: relative; height: 280px; margin-top: 8px; }
+  .caption { font-size: .85rem; margin: 2px 0 0; }
+  details { margin-top: 10px; font-size: .85rem; }
+  summary { cursor: pointer; color: var(--muted); }
+  table { border-collapse: collapse; margin-top: 6px; width: 100%; }
+  th, td { text-align: left; padding: 3px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  th { color: var(--muted); font-weight: 600; }
+  .findings { margin-top: 24px; }
+  .findings ol { margin: 8px 0 0; padding-left: 20px; }
+  .findings li { margin-bottom: 10px; }
+  .findings li p { margin: 2px 0 0; }
+  .method { margin-top: 12px; }
+  footer { margin-top: 32px; font-size: .85rem; color: var(--muted); }
+  @media (max-width: 820px) {
+    .kpis { grid-template-columns: 1fr 1fr; }
+    .charts { grid-template-columns: 1fr; }
+    .kpi .value { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Online retail sales, Dec 2010 to Dec 2011</h1>
+  <p>A UK online gift shop that sells mostly to wholesalers. Cleaned with pandas, queried with SQLite. All figures are for customers with a known ID, after removing duplicates, cancelled orders and non-product lines.</p>
+  <div class="links">
+    <a href="notebook.html">Analysis notebook</a>
+    <a href="sql.html">10 SQL queries with outputs</a>
+  </div>
+
+  <section class="kpis" aria-label="Key figures">
+    <div class="card kpi"><div class="label">Revenue</div><div class="value" id="k-revenue">–</div><div class="note" id="k-period"></div></div>
+    <div class="card kpi"><div class="label">Orders</div><div class="value" id="k-orders">–</div><div class="note" id="k-products"></div></div>
+    <div class="card kpi"><div class="label">Customers</div><div class="value" id="k-customers">–</div><div class="note" id="k-countries"></div></div>
+    <div class="card kpi"><div class="label">Average order value</div><div class="value" id="k-aov">–</div><div class="note" id="k-median"></div></div>
+  </section>
+
+  <section class="charts">
+    <div class="card wide">
+      <h2>Revenue by month</h2>
+      <p class="caption">Dec 2010 to Nov 2011. December 2011 is left out because the data stops on 9 December.</p>
+      <div class="chart-box"><canvas id="c-monthly" role="img" aria-label="Line chart of revenue by month"></canvas></div>
+      <details><summary>Show data table</summary><div id="t-monthly"></div></details>
+    </div>
+    <div class="card">
+      <h2>Top 10 countries outside the UK</h2>
+      <p class="caption" id="uk-note"></p>
+      <div class="chart-box"><canvas id="c-countries" role="img" aria-label="Bar chart of revenue by country, outside the UK"></canvas></div>
+      <details><summary>Show data table</summary><div id="t-countries"></div></details>
+    </div>
+    <div class="card">
+      <h2>Top 10 products by revenue</h2>
+      <p class="caption">Together only 8% of revenue across 3,644 products.</p>
+      <div class="chart-box"><canvas id="c-products" role="img" aria-label="Bar chart of the top 10 products by revenue"></canvas></div>
+      <details><summary>Show data table</summary><div id="t-products"></div></details>
+    </div>
+    <div class="card">
+      <h2>Orders by hour of day</h2>
+      <p class="caption">UK time. 79% of orders come between 10:00 and 15:59, and none on Saturdays.</p>
+      <div class="chart-box"><canvas id="c-hours" role="img" aria-label="Bar chart of orders by hour of day"></canvas></div>
+      <details><summary>Show data table</summary><div id="t-hours"></div></details>
+    </div>
+    <div class="card">
+      <h2>Share of revenue by share of customers</h2>
+      <p class="caption" id="pareto-note"></p>
+      <div class="chart-box"><canvas id="c-pareto" role="img" aria-label="Line chart of cumulative revenue share against customer share"></canvas></div>
+      <details><summary>Show data table</summary><div id="t-pareto"></div></details>
+    </div>
+  </section>
+
+  <section class="card findings">
+    <h2>Three findings</h2>
+    <ol>
+      <li><strong>The Christmas run-up drives the year.</strong>
+        <p>September to November 2011 brought 38% of the revenue in the 12 full months, and November (£1.13M) was 2.1× the January–August monthly average. Plan stock and staff from August.</p></li>
+      <li><strong>A small group of customers carries the business.</strong>
+        <p>The top 20% of customers brought 74% of revenue; the top 1% (about 43 customers) brought 30%. 35% of customers ordered only once. Look after the big accounts and give one-time buyers a reason to return.</p></li>
+      <li><strong>Sales are mostly British, with clear next markets.</strong>
+        <p>The UK brought 82% of revenue. The Netherlands, Ireland, Germany and France together brought 11%, so test growth there first.</p></li>
+    </ol>
+  </section>
+
+  <section class="card method">
+    <h2>How the data was cleaned</h2>
+    <div id="t-cleaning"></div>
+    <p class="caption" style="margin-top:8px">A cancellation is matched to the purchase it undid (same customer, item and quantity), and both are removed. Without this, one 80,995-unit order that was cancelled 12 minutes later would count as £168k of sales.</p>
+  </section>
+
+  <footer>
+    Data: <a href="https://archive.ics.uci.edu/dataset/352/online+retail">Online Retail</a> by Daqing Chen, UCI Machine Learning Repository, licensed CC BY 4.0.
+    Analysis by <a href="https://surya-pratap-singh-three.vercel.app/">Surya Pratap Singh</a>.
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const gbp = (v, digits = 0) => '£' + Number(v).toLocaleString('en-GB', { maximumFractionDigits: digits, minimumFractionDigits: digits });
+const gbpShort = (v) => (Math.abs(v) >= 1e6 ? `£${(v / 1e6).toFixed(2)}M` : `£${Math.round(v / 1e3)}k`);
+const num = (v) => Number(v).toLocaleString('en-GB');
+const $ = (id) => document.getElementById(id);
+
+function table(el, head, rows) {
+  $(el).innerHTML = `<table><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+}
+
+const charts = [];
+function render(d) {
+  charts.splice(0).forEach((c) => c.destroy());
+  const css = getComputedStyle(document.documentElement);
+  const v = (name) => css.getPropertyValue(name).trim();
+  const blue = v('--series-1'), muted = v('--muted'), grid = v('--grid');
+  Chart.defaults.color = muted;
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  const scale = (fmt, showGrid = true) => ({ grid: { color: grid, display: showGrid }, border: { display: false }, ticks: fmt ? { callback: fmt } : {} });
+  const base = (tooltipLabel) => ({
+    maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: tooltipLabel } } },
+  });
+  const bar = { backgroundColor: blue, borderRadius: 4, maxBarThickness: 22 };
+
+  charts.push(new Chart($('c-monthly'), {
+    type: 'line',
+    data: { labels: d.monthly.labels, datasets: [{ data: d.monthly.values, borderColor: blue, backgroundColor: blue, borderWidth: 2, pointRadius: 4, pointHoverRadius: 6 }] },
+    options: { ...base((c) => gbp(c.raw)), scales: { x: scale(undefined, false), y: { ...scale((t) => gbpShort(t)), beginAtZero: true } } },
+  }));
+  charts.push(new Chart($('c-countries'), {
+    type: 'bar',
+    data: { labels: d.countries.labels, datasets: [{ data: d.countries.values, ...bar }] },
+    options: { ...base((c) => gbp(c.raw)), indexAxis: 'y', scales: { x: scale((t) => gbpShort(t)), y: scale(undefined, false) } },
+  }));
+  charts.push(new Chart($('c-products'), {
+    type: 'bar',
+    data: { labels: d.products.labels, datasets: [{ data: d.products.values, ...bar }] },
+    options: {
+      ...base((c) => gbp(c.raw)), indexAxis: 'y',
+      scales: { x: scale((t) => gbpShort(t)), y: { ...scale(function (t) { const s = this.getLabelForValue(t); return s.length > 24 ? s.slice(0, 23) + '…' : s; }, false) } },
+    },
+  }));
+  charts.push(new Chart($('c-hours'), {
+    type: 'bar',
+    data: { labels: d.hours.labels, datasets: [{ data: d.hours.values, ...bar }] },
+    options: { ...base((c) => `${num(c.raw)} orders`), scales: { x: scale(undefined, false), y: scale((t) => num(t)) } },
+  }));
+  charts.push(new Chart($('c-pareto'), {
+    type: 'line',
+    data: { labels: d.pareto.labels, datasets: [{ data: d.pareto.values, borderColor: blue, backgroundColor: blue, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5 }] },
+    options: {
+      ...base((c) => `Top ${c.label}% of customers: ${c.raw}% of revenue`),
+      scales: {
+        x: { ...scale(undefined, false), ticks: { autoSkip: false, maxRotation: 0, callback: (t) => (t % 20 === 0 ? `${t}%` : '') }, title: { display: true, text: 'Customers, biggest spenders first' } },
+        y: { ...scale((t) => `${t}%`), min: 0, max: 100 },
+      },
+    },
+  }));
+}
+
+fetch('data.json').then((r) => r.json()).then((d) => {
+  const k = d.kpis;
+  $('k-revenue').textContent = gbpShort(k.revenue);
+  $('k-period').textContent = k.period;
+  $('k-orders').textContent = num(k.orders);
+  $('k-products').textContent = `${num(k.products)} products`;
+  $('k-customers').textContent = num(k.customers);
+  $('k-countries').textContent = `in ${k.countries} countries`;
+  $('k-aov').textContent = gbp(k.avg_order_value);
+  $('k-median').textContent = `median ${gbp(k.median_order_value)}`;
+  $('uk-note').textContent = `The UK brings ${Math.round(k.uk_share * 100)}% of revenue, so it is left out to show the rest.`;
+  $('pareto-note').textContent = `The top 20% of customers bring ${Math.round(d.pareto.values[20])}% of revenue.`;
+
+  table('t-monthly', ['Month', 'Revenue'], d.monthly.labels.map((l, i) => [l, gbp(d.monthly.values[i])]));
+  table('t-countries', ['Country', 'Revenue'], d.countries.labels.map((l, i) => [l, gbp(d.countries.values[i])]));
+  table('t-products', ['Product', 'Revenue'], d.products.labels.map((l, i) => [l, gbp(d.products.values[i])]));
+  table('t-hours', ['Hour', 'Orders'], d.hours.labels.map((l, i) => [l, num(d.hours.values[i])]));
+  table('t-pareto', ['Top % of customers', '% of revenue'], [1, 5, 10, 20, 30, 50, 80, 100].map((p) => [`${p}%`, `${d.pareto.values[p]}%`]));
+  table('t-cleaning', ['Step', 'Rows left'], d.cleaning.map(([s, n]) => [s, num(n)]));
+
+  render(d);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => render(d));
+});
+</script>
+</body>
+</html>

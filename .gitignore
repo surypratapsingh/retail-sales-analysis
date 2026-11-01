@@ -1,0 +1,4 @@
+data/raw/
+data/retail.db
+.vercel
+.env*.local

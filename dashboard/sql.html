@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retail Sales SQL</title>
+<meta name="description" content="Ten SQLite queries on the UCI Online Retail dataset, with their outputs.">
+<style>
+  :root { --bg: #f6f6f4; --surface: #fcfcfb; --text: #0b0b0b; --muted: #52514e; --line: #e4e3df; --code: #f0efec; --accent: #2a78d6; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #111110; --surface: #1a1a19; --text: #f0efec; --muted: #c3c2b7; --line: #34332f; --code: #23231f; --accent: #3987e5; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  a { color: var(--accent); }
+  h1 { margin: 0 0 6px; font-size: 1.8rem; }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  p { color: var(--muted); margin: 0 0 10px; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 18px; }
+  pre { background: var(--code); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: .82rem; margin: 0 0 12px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; font-size: .85rem; width: 100%; }
+  th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  td { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="./">← Dashboard</a></p>
+  <h1>Ten SQL queries</h1>
+  <p>SQLite, run on the cleaned data (4 tables: customers, products, orders, order_items). Joins, GROUP BY with HAVING, window functions (RANK, running total, LAG), second-highest value, CASE buckets and a LEFT JOIN. Outputs show up to 15 rows.</p>
+<section><h2>Q1. Headline KPIs: revenue, orders, customers, average order value</h2><pre><code>SELECT ROUND(SUM(oi.quantity * oi.unit_price), 2)                                 AS revenue,
+       COUNT(DISTINCT o.invoice_no)                                               AS orders,
+       COUNT(DISTINCT o.customer_id)                                              AS customers,
+       ROUND(SUM(oi.quantity * oi.unit_price) / COUNT(DISTINCT o.invoice_no), 2)  AS avg_order_value
+FROM orders o
+JOIN order_items oi ON oi.invoice_no = o.invoice_no;</code></pre><div class="scroll"><table><thead><tr><th>revenue</th><th>orders</th><th>customers</th><th>avg_order_value</th></tr></thead><tbody><tr><td>8,303,718.50</td><td>18,264</td><td>4,322</td><td>454.65</td></tr></tbody></table></div></section>
+<section><h2>Q2. Revenue and orders by month</h2><pre><code>SELECT strftime(&#x27;%Y-%m&#x27;, o.invoice_date)           AS month,
+       COUNT(DISTINCT o.invoice_no)                AS orders,
+       ROUND(SUM(oi.quantity * oi.unit_price), 2)  AS revenue
+FROM orders o
+JOIN order_items oi ON oi.invoice_no = o.invoice_no
+GROUP BY month
+ORDER BY month;</code></pre><div class="scroll"><table><thead><tr><th>month</th><th>orders</th><th>revenue</th></tr></thead><tbody><tr><td>2010-12</td><td>1,381</td><td>552,743.07</td></tr><tr><td>2011-01</td><td>967</td><td>454,006.58</td></tr><tr><td>2011-02</td><td>987</td><td>438,335.19</td></tr><tr><td>2011-03</td><td>1,304</td><td>573,089.78</td></tr><tr><td>2011-04</td><td>1,127</td><td>449,683.60</td></tr><tr><td>2011-05</td><td>1,533</td><td>651,562.24</td></tr><tr><td>2011-06</td><td>1,376</td><td>604,950.45</td></tr><tr><td>2011-07</td><td>1,313</td><td>580,928.40</td></tr><tr><td>2011-08</td><td>1,260</td><td>630,341.64</td></tr><tr><td>2011-09</td><td>1,729</td><td>927,853.79</td></tr><tr><td>2011-10</td><td>1,886</td><td>971,992.44</td></tr><tr><td>2011-11</td><td>2,629</td><td>1,125,519.78</td></tr><tr><td>2011-12</td><td>772</td><td>342,711.54</td></tr></tbody></table></div></section>
+<section><h2>Q3. Top 10 countries by revenue, with share of total (three-table join)</h2><pre><code>SELECT c.country,
+       COUNT(DISTINCT c.customer_id)               AS customers,
+       ROUND(SUM(oi.quantity * oi.unit_price), 2)  AS revenue,
+       ROUND(100.0 * SUM(oi.quantity * oi.unit_price)
+             / (SELECT SUM(quantity * unit_price) FROM order_items), 1) AS pct_of_revenue
+FROM customers c
+JOIN orders o       ON o.customer_id = c.customer_id
+JOIN order_items oi ON oi.invoice_no = o.invoice_no
+GROUP BY c.country
+ORDER BY revenue DESC
+LIMIT 10;</code></pre><div class="scroll"><table><thead><tr><th>country</th><th>customers</th><th>revenue</th><th>pct_of_revenue</th></tr></thead><tbody><tr><td>United Kingdom</td><td>3,907</td><td>6,832,416.37</td><td>82.30</td></tr><tr><td>Netherlands</td><td>9</td><td>283,479.54</td><td>3.40</td></tr><tr><td>EIRE</td><td>3</td><td>247,724.37</td><td>3.00</td></tr><tr><td>Germany</td><td>94</td><td>203,600.28</td><td>2.50</td></tr><tr><td>France</td><td>87</td><td>182,006.33</td><td>2.20</td></tr><tr><td>Australia</td><td>9</td><td>138,227.99</td><td>1.70</td></tr><tr><td>Spain</td><td>28</td><td>53,314.82</td><td>0.60</td></tr><tr><td>Switzerland</td><td>20</td><td>51,987.84</td><td>0.60</td></tr><tr><td>Japan</td><td>8</td><td>37,314.37</td><td>0.40</td></tr><tr><td>Belgium</td><td>24</td><td>37,027.61</td><td>0.40</td></tr></tbody></table></div></section>
+<section><h2>Q4. Average order value by country, only countries with at least 10 customers (GROUP BY + HAVING)</h2><pre><code>WITH order_totals AS (
+  SELECT o.invoice_no, o.customer_id, SUM(oi.quantity * oi.unit_price) AS total
+  FROM orders o
+  JOIN order_items oi ON oi.invoice_no = o.invoice_no
+  GROUP BY o.invoice_no
+)
+SELECT c.country,
+       COUNT(DISTINCT c.customer_id)  AS customers,
+       COUNT(*)                       AS orders,
+       ROUND(AVG(t.total), 2)         AS avg_order_value
+FROM order_totals t
+JOIN customers c ON c.customer_id = t.customer_id
+GROUP BY c.country
+HAVING COUNT(DISTINCT c.customer_id) &gt;= 10
+ORDER BY avg_order_value DESC;</code></pre><div class="scroll"><table><thead><tr><th>country</th><th>customers</th><th>orders</th><th>avg_order_value</th></tr></thead><tbody><tr><td>Switzerland</td><td>20</td><td>45</td><td>1,155.29</td></tr><tr><td>Norway</td><td>10</td><td>32</td><td>1,009.98</td></tr><tr><td>Spain</td><td>28</td><td>86</td><td>619.94</td></tr><tr><td>Portugal</td><td>19</td><td>49</td><td>541.31</td></tr><tr><td>France</td><td>87</td><td>377</td><td>482.78</td></tr><tr><td>Germany</td><td>94</td><td>441</td><td>461.68</td></tr><tr><td>Finland</td><td>12</td><td>40</td><td>458.62</td></tr><tr><td>Italy</td><td>14</td><td>34</td><td>458.06</td></tr><tr><td>United Kingdom</td><td>3,907</td><td>16,461</td><td>415.07</td></tr><tr><td>Belgium</td><td>24</td><td>98</td><td>377.83</td></tr></tbody></table></div></section>
+<section><h2>Q5. Top 10 products by revenue</h2><pre><code>SELECT p.stock_code,
+       p.description,
+       SUM(oi.quantity)                            AS units,
+       ROUND(SUM(oi.quantity * oi.unit_price), 2)  AS revenue
+FROM order_items oi
+JOIN products p ON p.stock_code = oi.stock_code
+GROUP BY p.stock_code
+ORDER BY revenue DESC
+LIMIT 10;</code></pre><div class="scroll"><table><thead><tr><th>stock_code</th><th>description</th><th>units</th><th>revenue</th></tr></thead><tbody><tr><td>22423</td><td>REGENCY CAKESTAND 3 TIER</td><td>11,968</td><td>137,613.85</td></tr><tr><td>85123A</td><td>WHITE HANGING HEART T-LIGHT HOLDER</td><td>34,239</td><td>94,073.65</td></tr><tr><td>85099B</td><td>JUMBO BAG RED RETROSPOT</td><td>45,195</td><td>83,522.40</td></tr><tr><td>47566</td><td>PARTY BUNTING</td><td>15,086</td><td>67,950.48</td></tr><tr><td>84879</td><td>ASSORTED COLOUR BIRD ORNAMENT</td><td>35,234</td><td>56,364.02</td></tr><tr><td>23084</td><td>RABBIT NIGHT LIGHT</td><td>27,123</td><td>51,188.84</td></tr><tr><td>79321</td><td>CHILLI LIGHTS</td><td>9,569</td><td>45,930.36</td></tr><tr><td>22086</td><td>PAPER CHAIN KIT 50&#x27;S CHRISTMAS</td><td>15,184</td><td>41,543.48</td></tr><tr><td>21137</td><td>BLACK RECORD COVER FRAME</td><td>11,389</td><td>39,000.80</td></tr><tr><td>22197</td><td>POPCORN HOLDER</td><td>48,935</td><td>37,041.63</td></tr></tbody></table></div></section>
+<section><h2>Q6. Top 3 products in each of the 5 biggest countries (RANK window function)</h2><pre><code>WITH top_countries AS (
+  SELECT c.country
+  FROM customers c
+  JOIN orders o       ON o.customer_id = c.customer_id
+  JOIN order_items oi ON oi.invoice_no = o.invoice_no
+  GROUP BY c.country
+  ORDER BY SUM(oi.quantity * oi.unit_price) DESC
+  LIMIT 5
+),
+sales AS (
+  SELECT c.country, p.description, SUM(oi.quantity * oi.unit_price) AS revenue
+  FROM order_items oi
+  JOIN orders o    ON o.invoice_no = oi.invoice_no
+  JOIN customers c ON c.customer_id = o.customer_id
+  JOIN products p  ON p.stock_code = oi.stock_code
+  WHERE c.country IN (SELECT country FROM top_countries)
+  GROUP BY c.country, p.description
+),
+ranked AS (
+  SELECT *, RANK() OVER (PARTITION BY country ORDER BY revenue DESC) AS rnk
+  FROM sales
+)
+SELECT country, rnk, description, ROUND(revenue, 2) AS revenue
+FROM ranked
+WHERE rnk &lt;= 3
+ORDER BY country, rnk;</code></pre><div class="scroll"><table><thead><tr><th>country</th><th>rnk</th><th>description</th><th>revenue</th></tr></thead><tbody><tr><td>EIRE</td><td>1</td><td>REGENCY CAKESTAND 3 TIER</td><td>6,936.15</td></tr><tr><td>EIRE</td><td>2</td><td>3 TIER CAKE TIN RED AND CREAM</td><td>3,011.65</td></tr><tr><td>EIRE</td><td>3</td><td>JAM MAKING SET WITH JARS</td><td>2,976.00</td></tr><tr><td>France</td><td>1</td><td>RABBIT NIGHT LIGHT</td><td>7,234.24</td></tr><tr><td>France</td><td>2</td><td>REGENCY CAKESTAND 3 TIER</td><td>2,676.60</td></tr><tr><td>France</td><td>3</td><td>RED TOADSTOOL LED NIGHT LIGHT</td><td>2,130.15</td></tr><tr><td>Germany</td><td>1</td><td>REGENCY CAKESTAND 3 TIER</td><td>8,985.45</td></tr><tr><td>Germany</td><td>2</td><td>ROUND SNACK BOXES SET OF4 WOODLAND</td><td>3,563.55</td></tr><tr><td>Germany</td><td>3</td><td>ROUND SNACK BOXES SET OF 4 FRUITS</td><td>1,982.40</td></tr><tr><td>Netherlands</td><td>1</td><td>RABBIT NIGHT LIGHT</td><td>9,568.48</td></tr><tr><td>Netherlands</td><td>2</td><td>ROUND SNACK BOXES SET OF4 WOODLAND</td><td>7,991.40</td></tr><tr><td>Netherlands</td><td>3</td><td>SPACEBOY LUNCH BOX</td><td>7,485.60</td></tr><tr><td>United Kingdom</td><td>1</td><td>REGENCY CAKESTAND 3 TIER</td><td>107,056.15</td></tr><tr><td>United Kingdom</td><td>2</td><td>WHITE HANGING HEART T-LIGHT HOLDER</td><td>88,557.85</td></tr><tr><td>United Kingdom</td><td>3</td><td>JUMBO BAG RED RETROSPOT</td><td>75,696.07</td></tr></tbody></table></div></section>
+<section><h2>Q7. Running total of revenue and month-over-month growth (SUM OVER, LAG)</h2><pre><code>-- Note: 2011-12 only covers 1-9 December, so its drop is not a real decline.
+WITH monthly AS (
+  SELECT strftime(&#x27;%Y-%m&#x27;, o.invoice_date) AS month, SUM(oi.quantity * oi.unit_price) AS revenue
+  FROM orders o
+  JOIN order_items oi ON oi.invoice_no = o.invoice_no
+  GROUP BY month
+)
+SELECT month,
+       ROUND(revenue, 2)                                AS revenue,
+       ROUND(SUM(revenue) OVER (ORDER BY month), 2)     AS running_total,
+       ROUND(100.0 * (revenue - LAG(revenue) OVER (ORDER BY month))
+             / LAG(revenue) OVER (ORDER BY month), 1)   AS growth_pct
+FROM monthly
+ORDER BY month;</code></pre><div class="scroll"><table><thead><tr><th>month</th><th>revenue</th><th>running_total</th><th>growth_pct</th></tr></thead><tbody><tr><td>2010-12</td><td>552,743.07</td><td>552,743.07</td><td>NULL</td></tr><tr><td>2011-01</td><td>454,006.58</td><td>1,006,749.65</td><td>-17.90</td></tr><tr><td>2011-02</td><td>438,335.19</td><td>1,445,084.84</td><td>-3.50</td></tr><tr><td>2011-03</td><td>573,089.78</td><td>2,018,174.62</td><td>30.70</td></tr><tr><td>2011-04</td><td>449,683.60</td><td>2,467,858.22</td><td>-21.50</td></tr><tr><td>2011-05</td><td>651,562.24</td><td>3,119,420.46</td><td>44.90</td></tr><tr><td>2011-06</td><td>604,950.45</td><td>3,724,370.91</td><td>-7.20</td></tr><tr><td>2011-07</td><td>580,928.40</td><td>4,305,299.31</td><td>-4.00</td></tr><tr><td>2011-08</td><td>630,341.64</td><td>4,935,640.95</td><td>8.50</td></tr><tr><td>2011-09</td><td>927,853.79</td><td>5,863,494.74</td><td>47.20</td></tr><tr><td>2011-10</td><td>971,992.44</td><td>6,835,487.18</td><td>4.80</td></tr><tr><td>2011-11</td><td>1,125,519.78</td><td>7,961,006.96</td><td>15.80</td></tr><tr><td>2011-12</td><td>342,711.54</td><td>8,303,718.50</td><td>-69.60</td></tr></tbody></table></div></section>
+<section><h2>Q8. Second-highest spending customer (classic subquery; DENSE_RANK() = 2 gives the same answer)</h2><pre><code>WITH spend AS (
+  SELECT o.customer_id, SUM(oi.quantity * oi.unit_price) AS total
+  FROM orders o
+  JOIN order_items oi ON oi.invoice_no = o.invoice_no
+  GROUP BY o.customer_id
+)
+SELECT s.customer_id, c.country, ROUND(s.total, 2) AS total_spend
+FROM spend s
+JOIN customers c ON c.customer_id = s.customer_id
+WHERE s.total = (SELECT MAX(total) FROM spend WHERE total &lt; (SELECT MAX(total) FROM spend));</code></pre><div class="scroll"><table><thead><tr><th>customer_id</th><th>country</th><th>total_spend</th></tr></thead><tbody><tr><td>18102</td><td>United Kingdom</td><td>259,657.30</td></tr></tbody></table></div></section>
+<section><h2>Q9. How many orders customers place (CASE buckets)</h2><pre><code>WITH per_customer AS (
+  SELECT customer_id, COUNT(*) AS orders FROM orders GROUP BY customer_id
+)
+SELECT CASE WHEN orders = 1  THEN &#x27;1 order&#x27;
+            WHEN orders &lt;= 5 THEN &#x27;2-5 orders&#x27;
+            WHEN orders &lt;= 20 THEN &#x27;6-20 orders&#x27;
+            ELSE &#x27;21+ orders&#x27; END                                  AS bucket,
+       COUNT(*)                                                    AS customers,
+       ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM per_customer), 1) AS pct_of_customers
+FROM per_customer
+GROUP BY bucket
+ORDER BY MIN(orders);</code></pre><div class="scroll"><table><thead><tr><th>bucket</th><th>customers</th><th>pct_of_customers</th></tr></thead><tbody><tr><td>1 order</td><td>1,504</td><td>34.80</td></tr><tr><td>2-5 orders</td><td>1,962</td><td>45.40</td></tr><tr><td>6-20 orders</td><td>762</td><td>17.60</td></tr><tr><td>21+ orders</td><td>94</td><td>2.20</td></tr></tbody></table></div></section>
+<section><h2>Q10. Lapsed customers: no order in the last 90 days of data, by country (LEFT JOIN)</h2><pre><code>WITH recent AS (
+  SELECT DISTINCT customer_id
+  FROM orders
+  WHERE invoice_date &gt;= date((SELECT MAX(invoice_date) FROM orders), &#x27;-90 days&#x27;)
+)
+SELECT c.country,
+       COUNT(*)                                              AS customers,
+       SUM(r.customer_id IS NULL)                            AS lapsed_90d,
+       ROUND(100.0 * SUM(r.customer_id IS NULL) / COUNT(*), 1) AS lapsed_pct
+FROM customers c
+LEFT JOIN recent r ON r.customer_id = c.customer_id
+GROUP BY c.country
+HAVING COUNT(*) &gt;= 20
+ORDER BY customers DESC;</code></pre><div class="scroll"><table><thead><tr><th>country</th><th>customers</th><th>lapsed_90d</th><th>lapsed_pct</th></tr></thead><tbody><tr><td>United Kingdom</td><td>3,907</td><td>1,305</td><td>33.40</td></tr><tr><td>Germany</td><td>94</td><td>25</td><td>26.60</td></tr><tr><td>France</td><td>87</td><td>26</td><td>29.90</td></tr><tr><td>Spain</td><td>28</td><td>8</td><td>28.60</td></tr><tr><td>Belgium</td><td>24</td><td>7</td><td>29.20</td></tr><tr><td>Switzerland</td><td>20</td><td>8</td><td>40.00</td></tr></tbody></table></div></section>
+</main>
+</body>
+</html>
