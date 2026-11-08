@@ -210,6 +210,9 @@ fetch('data.json').then((r) => r.json()).then((d) => {
 
   render(d);
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => render(d));
+}).catch(() => {
+  // Failed request or malformed data.json: say so instead of leaving "–" with no reason.
+  $('k-period').textContent = 'Could not load the figures. Refresh the page to try again.';
 });
 </script>
 </body>
