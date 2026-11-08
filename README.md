@@ -50,6 +50,12 @@ The notebook rebuilds `data/retail.db`, the charts and `dashboard/data.json`. Th
 python sql/run_queries.py
 ```
 
+Check that the published numbers agree with each other (standard library only; the database checks run only when `data/retail.db` exists):
+
+```bash
+python -m unittest discover -s tests
+```
+
 To refresh the notebook page on the site:
 
 ```bash
