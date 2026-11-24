@@ -14,6 +14,7 @@ The raw file is not in this folder's published output. To get it, download the z
 | Folder | What it holds |
 |---|---|
 | `analysis/retail_analysis.ipynb` | Data quality checks, cleaning, exploration, 5 charts, written findings. Saved with its outputs. |
+| `analysis/retail_clean.py` | The cleaning steps, used by the notebook (pandas). |
 | `analysis/charts/` | The 5 charts as PNG files. |
 | `sql/queries.sql` | 10 SQLite queries: joins, GROUP BY + HAVING, RANK, running total, LAG, second-highest, CASE buckets, LEFT JOIN. |
 | `sql/results.md` | The output of every query. |
@@ -78,7 +79,7 @@ python sql/run_queries.py
 python -m unittest discover -s tests -v
 ```
 
-The smoke test does not cover the pandas cleaning steps: those run only in the notebook.
+`tests/test_retail_clean.py` checks the cleaning steps on made-up rows (needs pandas, which `requirements.txt` lists). The smoke test does not cover them.
 
 ## Limits
 - Only identified customers are counted (about a quarter of rows have no CustomerID).
