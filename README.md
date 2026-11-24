@@ -62,6 +62,24 @@ To refresh the notebook page on the site:
 jupyter nbconvert --to html analysis/retail_analysis.ipynb --output-dir dashboard --output notebook
 ```
 
+## Re-run the pipeline
+Smoke test with no data and no installs (standard library only). It builds a small database from made-up rows in `tests/data/sample/`, runs the ten SQL queries into a temporary folder and checks the totals by hand:
+
+```bash
+python -m unittest tests/test_pipeline_smoke.py -v
+```
+
+Full rebuild from the real data (needs `pip install`, and the raw file from the UCI page in `data/raw/`):
+
+```bash
+pip install -r requirements.txt
+cd analysis && jupyter nbconvert --to notebook --execute --inplace retail_analysis.ipynb && cd ..
+python sql/run_queries.py
+python -m unittest discover -s tests -v
+```
+
+The smoke test does not cover the pandas cleaning steps: those run only in the notebook.
+
 ## Limits
 - Only identified customers are counted (about a quarter of rows have no CustomerID).
 - A cancellation is matched to a purchase only when customer, item and quantity are the same.
